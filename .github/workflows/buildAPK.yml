@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Build Flutter APK (Debug)
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.10'
+          flutter-version: '3.38.10'   # 稳定版本
           channel: 'stable'
           cache: true
 
@@ -44,18 +44,31 @@ jobs:
           echo "Check if android/ exists:"
           ls -la android || echo "android folder not found"
 
+      # 🔧 关键步骤：创建假的 key.properties 文件，避免 release 签名配置报错
+      - name: Create fake key.properties
+        working-directory: ./simple_live_app/android
+        run: |
+          cat > key.properties << EOF
+          keyAlias=debug
+          keyPassword=android
+          storeFile=../keystore/debug.keystore
+          storePassword=android
+          EOF
+          echo "Created fake key.properties:"
+          cat key.properties
+
       - name: Get dependencies
         working-directory: ./simple_live_app
         run: flutter pub get
 
-      # 修正后的构建步骤
-      - name: Build APK with verbose logging
+      # 构建 debug APK（自带签名，可直接安装）
+      - name: Build debug APK
         working-directory: ./simple_live_app
-        run: flutter build apk --release --verbose --gradle-opts="--stacktrace"
+        run: flutter build apk --debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: ./simple_live_app/build/app/outputs/flutter-apk/app-release.apk
+          name: app-debug-apk
+          path: ./simple_live_app/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
