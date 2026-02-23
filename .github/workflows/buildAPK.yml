@@ -1,7 +1,7 @@
 name: Build Flutter APK
 
 on:
-  workflow_dispatch:        # 手动触发
+  workflow_dispatch:        # 允许手动触发
   push:
     branches: [ main, master ]
   pull_request:
@@ -12,11 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出代码（如果项目有子模块，启用 submodules）
+      # 1. 检出代码（如需子模块，取消下一行注释）
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: true   # 如果项目使用了子模块，请保留此选项
+        # with:
+        #   submodules: true
 
       # 2. 设置 Java 环境
       - name: Setup Java
@@ -25,7 +25,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3. 设置 Flutter（使用最新的稳定版 3.41.0）
+      # 3. 设置 Flutter（使用最新稳定版 3.41.0）
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -36,22 +36,21 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      # 4. 调试：列出当前目录内容，帮助定位 pubspec.yaml
+      # 4. 调试：列出当前目录内容（确认子文件夹结构）
       - name: Debug - list files
         run: |
           echo "Current working directory: $(pwd)"
           echo "Contents:"
           ls -la
 
-      # 5. 获取依赖（注意：如果 pubspec.yaml 不在根目录，请修改 working-directory）
+      # 5. 进入子文件夹并获取依赖
       - name: Get dependencies
-        # 如果 pubspec.yaml 在子目录中（如 ./example），请取消下一行注释并修改路径
-        # working-directory: ./子目录名
+        working-directory: ./simple_live_app   # 关键：切换到 pubspec.yaml 所在目录
         run: flutter pub get
 
-      # 6. 编译 release APK（同样，如果不在根目录，请设置 working-directory）
+      # 6. 编译 release APK
       - name: Build APK
-        # working-directory: ./子目录名   # 与上一步保持一致
+        working-directory: ./simple_live_app   # 同上
         run: flutter build apk --release
 
       # 7. 上传生成的 APK（路径需与编译目录匹配）
@@ -59,6 +58,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          # 如果 pubspec.yaml 在子目录，请修改路径为 ./子目录名/build/... 
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: ./simple_live_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
