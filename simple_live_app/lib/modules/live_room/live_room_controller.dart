@@ -230,6 +230,11 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
 
       messages.add(msg);
 
+      // 🔴 新增：内存优化，最多保留500条消息（无论滚动状态）
+      if (messages.length > 500) {
+        messages.removeRange(0, messages.length - 500);
+      }
+
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => chatScrollToBottom(),
       );
@@ -287,6 +292,11 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
       addSysMsg("正在读取直播间信息");
       detail.value = await site.liveSite.getRoomDetail(roomId: roomId);
 
+      // 🔴 关键修复：如果返回null，抛出异常
+      if (detail.value == null) {
+        throw Exception("房间信息为空，可能房间不存在");
+      }
+
       if (site.id == Constant.kDouyin) {
         // 1.6.0之前收藏的WebRid
         // 1.6.0收藏的RoomID
@@ -331,11 +341,16 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
       initDanmau();
       liveDanmaku.start(detail.value?.danmakuData);
       startLiveDurationTimer(); // 启动开播时长定时器
-    } catch (e) {
+    } catch (e, stack) {
       Log.logPrint(e);
+      Log.logPrint(stack);
       //SmartDialog.showToast(e.toString());
       loadError.value = true;
-      error = e as Error;
+      // 安全存储错误
+      error = e is Error ? e : Error();
+      // 显示友好提示
+      SmartDialog.showToast("加载失败：${e.toString().replaceAll('Exception:', '')}");
+      addSysMsg("加载失败：${e.toString().replaceAll('Exception:', '')}");
     } finally {
       SmartDialog.dismiss(status: SmartStatus.loading);
     }
@@ -375,18 +390,19 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
     }
   }
 
+  /// 🔴 修改后的画质等级选择：Wi-Fi下最高(2)，流量下中等(1)
   Future<int> getQualityLevel() async {
-    var qualityLevel = AppSettingsController.instance.qualityLevel.value;
     try {
       var connectivityResult = await (Connectivity().checkConnectivity());
       if (connectivityResult.first == ConnectivityResult.mobile) {
-        qualityLevel =
-            AppSettingsController.instance.qualityLevelCellular.value;
+        return 1; // 流量下中等画质
+      } else {
+        return 2; // Wi-Fi下最高画质
       }
     } catch (e) {
       Log.logPrint(e);
+      return 2; // 出错时默认最高画质
     }
-    return qualityLevel;
   }
 
   void getPlayUrl() async {
