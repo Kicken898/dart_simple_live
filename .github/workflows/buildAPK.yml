@@ -21,11 +21,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # 使用更稳定的 Flutter 版本 3.38.10（而非最新版）
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.10'   # 切换到经过验证的稳定版
+          flutter-version: '3.38.10'
           channel: 'stable'
           cache: true
 
@@ -37,7 +36,6 @@ jobs:
           echo "Root directory:"
           ls -la
 
-      # 列出子文件夹内容，确认结构
       - name: List simple_live_app contents
         working-directory: ./simple_live_app
         run: |
@@ -50,7 +48,7 @@ jobs:
         working-directory: ./simple_live_app
         run: flutter pub get
 
-      # 添加 --verbose 和 --stacktrace 以便获取详细错误信息
+      # 修正后的构建步骤
       - name: Build APK with verbose logging
         working-directory: ./simple_live_app
         run: flutter build apk --release --verbose --gradle-opts="--stacktrace"
