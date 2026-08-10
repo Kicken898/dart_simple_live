@@ -64,6 +64,13 @@ jobs:
           flutter pub get
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
+      - name: Patch inappwebview coroutine for new MSVC
+        shell: bash
+        run: |
+          for f in "$PUB_CACHE"/hosted/pub.dev/flutter_inappwebview_windows-*/windows/CMakeLists.txt; do
+            [ -f "$f" ] && sed -i '/cmake_minimum_required/a add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)' "$f"
+          done
+          cat "$PUB_CACHE/hosted/pub.dev"/flutter_inappwebview_windows-*/windows/CMakeLists.txt | head -8
       - name: Build Windows
         run: |
           cd simple_live_app
