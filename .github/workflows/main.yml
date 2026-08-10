@@ -117,8 +117,6 @@ jobs:
           rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
-      - name: Install flutter_distributor
-        run: dart pub global activate flutter_distributor
       - name: Patch experimental coroutine for new MSVC
         shell: bash
         run: |
@@ -139,12 +137,17 @@ jobs:
           cd simple_live_app
           rm -rf build .dart_tool
           flutter pub get
-          flutter_distributor package --platform windows --targets msix,zip
+          flutter build windows --release
+          echo "--- native asset dll ---"
+          find build/windows -name "libdart_quickjs*.dll" 2>/dev/null || true
+          mkdir -p build/dist
+          ZIP="build/dist/simple_live_app-1.11.4+11104-windows.zip"
+          (cd build/windows/x64/runner/Release && zip -r - .) > "$ZIP"
+          echo "zip: $(ls -la "$ZIP" | awk '{print $5}') bytes"
       - name: Upload Windows to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows
           if-no-files-found: warn
           path: |
-            simple_live_app/build/dist/*/*.msix
-            simple_live_app/build/dist/*/*.zip
+            simple_live_app/build/dist/*.zip
