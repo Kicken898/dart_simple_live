@@ -27,6 +27,16 @@ jobs:
           rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
+      - name: Force DIRECT_DISPATCH=0 in quickjs source
+        run: |
+          set -e
+          DQ=$(ls -d "$HOME/.pub-cache/git/dart_quickjs-*" 2>/dev/null | head -1)
+          [ -z "$DQ" ] && DQ=$(ls -d "/home/runner/.pub-cache/git/dart_quickjs-*" 2>/dev/null | head -1)
+          [ -z "$DQ" ] && DQ=$(ls -d "$PUB_CACHE/git/dart_quickjs-*" 2>/dev/null | head -1)
+          echo "patching: $DQ"
+          F="$DQ/third_party/quickjs-ng/quickjs.c"
+          sed -i 's/#define DIRECT_DISPATCH 1/#define DIRECT_DISPATCH 0/' "$F"
+          grep -n "#define DIRECT_DISPATCH" "$F" || true
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
       - name: Build Linux (force clean native assets)
