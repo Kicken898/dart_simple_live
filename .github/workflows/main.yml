@@ -29,20 +29,38 @@ jobs:
           flutter pub get
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
-      - name: Build Linux
+      - name: Build Linux (force clean native assets)
         run: |
           cd simple_live_app
-          flutter_distributor package --platform linux --targets deb,zip --skip-clean
+          rm -rf build .dart_tool
+          flutter pub get
+          flutter build linux --release
+          echo "--- native asset outputs ---"
+          find . -name "*.so" -path "*native_assets*" 2>/dev/null || true
+          find build -name "libdart_quickjs.so" 2>/dev/null
+      - name: Package Linux deb+zip manually
+        run: |
+          cd simple_live_app
+          VER=1.11.4+11104
+          DEBROOT="build/dist/${VER}/simple_live_app-${VER}-linux_deb"
+          mkdir -p "$DEBROOT/DEBIAN" "$DEBROOT/opt/simple_live_app" \
+            "$DEBROOT/usr/share/applications" \
+            "$DEBROOT/usr/share/icons/hicolor/128x128/apps" \
+            "$DEBROOT/usr/share/icons/hicolor/256x256/apps"
+          cp -fr build/linux/x64/release/bundle/. "$DEBROOT/opt/simple_live_app/"
+          printf 'Package: simple-live\nVersion: %s\nSection: x11\nPriority: optional\nArchitecture: amd64\nDepends: libmpv2\nInstalled-Size: 24400\nMaintainer: xiaoyaocz <xiaoyaocz@52uwp.com>\nDescription: Simple Live APP\n' "$VER" \
+            > "$DEBROOT/DEBIAN/control"
+          printf '#!/bin/sh\nset -e\nif command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database >/dev/null 2>&1 || true; fi\nexit 0\n' > "$DEBROOT/DEBIAN/postinst"
+          chmod +x "$DEBROOT/DEBIAN/postinst"
+          dpkg-deb --build --root-owner-group "$DEBROOT" "build/dist/${VER}/simple_live_app-${VER}-linux.deb"
+          cd "build/dist/${VER}"
+          cp -r simple_live_app-${VER}-linux_deb/opt/simple_live_app ./
+          zip -qr "simple_live_app-${VER}-linux.zip" simple_live_app
+          ls -la
       - name: Inject deb dependency on libmpv
         run: |
           set -e
           deb=$(ls simple_live_app/build/dist/*/*.deb)
-          tmp=$(mktemp -d)
-          dpkg-deb -R "$deb" "$tmp/pkg"
-          sed -i 's/^Architecture:.*/Architecture: amd64\nDepends: libmpv2/' "$tmp/pkg/DEBIAN/control"
-          dpkg-deb -b "$tmp/pkg" "${deb%.deb}-withdep.deb"
-          rm -f "$deb"
-          mv "${deb%.deb}-withdep.deb" "$deb"
           dpkg-deb -I "$deb" | grep -E "Package|Depends"
       - name: Upload Linux to Artifacts
         uses: actions/upload-artifact@v4
@@ -92,7 +110,9 @@ jobs:
       - name: Build Windows
         run: |
           cd simple_live_app
-          flutter_distributor package --platform windows --targets msix,zip --skip-clean
+          rm -rf build .dart_tool
+          flutter pub get
+          flutter_distributor package --platform windows --targets msix,zip
       - name: Upload Windows to Artifacts
         uses: actions/upload-artifact@v4
         with:
