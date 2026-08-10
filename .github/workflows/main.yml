@@ -30,12 +30,16 @@ jobs:
       - name: Force DIRECT_DISPATCH=0 in quickjs source
         run: |
           set -e
-          DQ=$(find "$HOME/.pub-cache" -maxdepth 2 -type d -name "dart_quickjs*" 2>/dev/null | head -1)
-          [ -z "$DQ" ] && DQ=$(find "$PUB_CACHE" -maxdepth 2 -type d -name "dart_quickjs*" 2>/dev/null | head -1)
-          echo "patching: $DQ"
+          for base in "$PUB_CACHE" "$HOME/.pub-cache" /home/runner/.pub-cache; do
+            DQ=$(find "$base" -maxdepth 2 -type d -name "dart_quickjs*" 2>/dev/null | head -1)
+            [ -n "$DQ" ] && break
+          done
+          echo "patching dir: ${DQ:-NOT_FOUND}"
+          test -n "$DQ"
           F="$DQ/third_party/quickjs-ng/quickjs.c"
-          test -f "$F"
+          test -f "$F" || { echo "no quickjs.c at $F"; exit 1; }
           sed -i 's/#define DIRECT_DISPATCH 1/#define DIRECT_DISPATCH 0/' "$F"
+          echo "--- after patch ---"
           grep -n "#define DIRECT_DISPATCH" "$F" || true
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
