@@ -27,31 +27,32 @@ jobs:
           rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
-      - name: Force DIRECT_DISPATCH=0 in quickjs source
+      - name: Install flutter_distributor
+        run: dart pub global activate flutter_distributor
+      - name: Build Linux (force clean + DIRECT_DISPATCH=0)
         run: |
-          set -e
+          cd simple_live_app
+          rm -rf build .dart_tool
+          flutter pub get
+          # Patch quickjs.c DIRECT_DISPATCH=0 right before build (git dep gets re-checked out by pub get)
           for base in "$PUB_CACHE" "$HOME/.pub-cache" /home/runner/.pub-cache; do
             DQ=$(find "$base" -maxdepth 2 -type d -name "dart_quickjs*" 2>/dev/null | head -1)
             [ -n "$DQ" ] && break
           done
           echo "patching dir: ${DQ:-NOT_FOUND}"
-          test -n "$DQ"
+          [ -n "$DQ" ] || { echo "dart_quickjs source NOT found"; exit 1; }
           F="$DQ/third_party/quickjs-ng/quickjs.c"
-          test -f "$F" || { echo "no quickjs.c at $F"; exit 1; }
+          [ -f "$F" ] || { echo "no quickjs.c at $F"; exit 1; }
           sed -i 's/#define DIRECT_DISPATCH 1/#define DIRECT_DISPATCH 0/' "$F"
-          echo "--- after patch ---"
           grep -n "#define DIRECT_DISPATCH" "$F" || true
-      - name: Install flutter_distributor
-        run: dart pub global activate flutter_distributor
-      - name: Build Linux (force clean native assets)
-        run: |
-          cd simple_live_app
-          rm -rf build .dart_tool
-          flutter pub get
+          # Build
           flutter build linux --release
           echo "--- native asset outputs ---"
           find build -name "libdart_quickjs.so" 2>/dev/null
+          echo "jump table count in native asset:"
           objdump -d build/native_assets/linux/libdart_quickjs.so 2>/dev/null | grep -cE "jmpq? *\*%(rax|rbx|rcx|rdx|rsi|rdi|r8|r9|r10|r11|r12|r13|r14|r15)" || true
+          echo "jump table count in bundle:"
+          objdump -d build/linux/x64/release/bundle/lib/libdart_quickjs.so 2>/dev/null | grep -cE "jmpq? *\*%(rax|rbx|rcx|rdx|rsi|rdi|r8|r9|r10|r11|r12|r13|r14|r15)" || true
       - name: Package Linux deb+zip manually
         run: |
           cd simple_live_app
