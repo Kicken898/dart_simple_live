@@ -73,20 +73,11 @@ class DouyinSite implements LiveSite {
       header: await getRequestHeaders(),
     );
 
-    var renderData =
-        RegExp(
-          r'\{\\"pathname\\":\\"\/\\",\\"categoryData.*?\]\\n',
-        ).firstMatch(result)?.group(0) ??
-        "";
-    var renderDataJson = json.decode(
-      renderData
-          .trim()
-          .replaceAll('\\"', '"')
-          .replaceAll(r"\\", r"\")
-          .replaceAll(']\\n', ""),
-    );
-
-    for (var item in renderDataJson["categoryData"]) {
+    var renderDataJson = _extractCategoryData(result);
+    if (renderDataJson == null) {
+      return categories;
+    }
+    for (var item in renderDataJson) {
       List<LiveSubCategory> subs = [];
       var id = '${item["partition"]["id_str"]},${item["partition"]["type"]}';
       for (var subItem in item["sub_partition"]) {
@@ -116,6 +107,45 @@ class DouyinSite implements LiveSite {
       categories.add(category);
     }
     return categories;
+  }
+
+  /// 从首页 HTML 中提取 categoryData 数组。
+  /// 用括号配对定位数组边界，避免旧正则被 categoryData 后的兄弟节点干扰。
+  List<Map<String, dynamic>>? _extractCategoryData(String html) {
+    try {
+      final marker = 'categoryData":';
+      var start = html.indexOf(marker);
+      if (start < 0) {
+        start = html.indexOf('categoryData');
+        if (start < 0) return null;
+      }
+      final startBracket = html.indexOf('[', start);
+      if (startBracket < 0) return null;
+      var depth = 0;
+      var end = -1;
+      for (var k = startBracket; k < html.length; k++) {
+        if (html[k] == '[') {
+          depth++;
+        } else if (html[k] == ']') {
+          depth--;
+          if (depth == 0) {
+            end = k;
+            break;
+          }
+        }
+      }
+      if (end < 0) return null;
+      final arr = html.substring(startBracket, end + 1);
+      final decoded = arr.replaceAll('\\"', '"').replaceAll('\\\\', '\\');
+      final data = json.decode(decoded);
+      if (data is List) {
+        return data.map((e) => e as Map<String, dynamic>).toList();
+      }
+      return null;
+    } catch (e) {
+      _logDebug("解析 categoryData 失败: $e");
+      return null;
+    }
   }
 
   @override
