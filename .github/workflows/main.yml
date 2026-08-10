@@ -45,6 +45,17 @@ jobs:
           [ -f "$F" ] || { echo "no quickjs.c at $F"; exit 1; }
           sed -i 's/#define DIRECT_DISPATCH 1/#define DIRECT_DISPATCH 0/' "$F"
           grep -n "#define DIRECT_DISPATCH" "$F" || true
+          # Fix symbol interposition (js_free resolved to libmujs.so from media_kit/mpv/ffmpeg
+          # => SIGSEGV when QuickJS frees). Bind internal refs to own exports with -Bsymbolic.
+          HB="$DQ/dq_build.dart"
+          [ -f "$HB" ] || HB="$DQ/hook/build.dart"
+          echo "hook file: ${HB:-NOT_FOUND}"
+          if [ -n "$HB" ] && [ -f "$HB" ]; then
+            awk '/-fwrapv/{print; print "          '\''-Wl,-Bsymbolic'\'', // bind to own exports (fix libmujs interposition)"; next}1' "$HB" > "$HB.tmp" && mv "$HB.tmp" "$HB"
+            grep -n "Bsymbolic" "$HB" || true
+          else
+            echo "WARNING: dq_build.dart not found, cannot patch -Bsymbolic"
+          fi
           # Build
           flutter build linux --release
           echo "--- native asset outputs ---"
