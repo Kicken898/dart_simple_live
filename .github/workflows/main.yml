@@ -64,6 +64,10 @@ jobs:
         run: |
           cd simple_live_app
           flutter pub get
+      - name: Patch auto_orientation_v2 for Linux
+        shell: bash
+        run: |
+          sed -i '/auto_orientation_v2/d' simple_live_app/linux/flutter/generated_plugins.cmake
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
       - name: Build Linux
