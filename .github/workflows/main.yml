@@ -33,6 +33,17 @@ jobs:
         run: |
           cd simple_live_app
           flutter_distributor package --platform linux --targets deb,zip --skip-clean
+      - name: Inject deb dependency on libmpv
+        run: |
+          set -e
+          deb=$(ls simple_live_app/build/dist/*/*.deb)
+          tmp=$(mktemp -d)
+          dpkg-deb -R "$deb" "$tmp/pkg"
+          sed -i 's/^Architecture:.*/Architecture: amd64\nDepends: libmpv2/' "$tmp/pkg/DEBIAN/control"
+          dpkg-deb -b "$tmp/pkg" "${deb%.deb}-withdep.deb"
+          rm -f "$deb"
+          mv "${deb%.deb}-withdep.deb" "$deb"
+          dpkg-deb -I "$deb" | grep -E "Package|Depends"
       - name: Upload Linux to Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -64,13 +75,20 @@ jobs:
           flutter pub get
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
-      - name: Patch inappwebview coroutine for new MSVC
+      - name: Patch experimental coroutine for new MSVC
         shell: bash
         run: |
-          for f in "$PUB_CACHE"/hosted/pub.dev/flutter_inappwebview_windows-*/windows/CMakeLists.txt; do
-            [ -f "$f" ] && sed -i '/cmake_minimum_required/a add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)' "$f"
+          for f in \
+            "$PUB_CACHE"/hosted/pub.dev/flutter_inappwebview_windows-*/windows/CMakeLists.txt \
+            "$PUB_CACHE"/hosted/pub.dev/permission_handler_windows-*/windows/CMakeLists.txt; do
+            if [ -f "$f" ]; then
+              if ! grep -q "SILENCE_EXPERIMENTAL_COROUTINE" "$f"; then
+                sed -i '/cmake_minimum_required/a add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)' "$f"
+                echo 'target_compile_definitions(${PLUGIN_NAME} PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)' >> "$f"
+              fi
+            fi
           done
-          cat "$PUB_CACHE/hosted/pub.dev"/flutter_inappwebview_windows-*/windows/CMakeLists.txt | head -8
+          grep -l "SILENCE_EXPERIMENTAL_COROUTINE" "$PUB_CACHE"/hosted/pub.dev/*/windows/CMakeLists.txt 2>/dev/null || true
       - name: Build Windows
         run: |
           cd simple_live_app
