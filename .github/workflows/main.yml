@@ -141,9 +141,13 @@ jobs:
           echo "--- native asset dll ---"
           find build/windows -name "libdart_quickjs*.dll" 2>/dev/null || true
           mkdir -p build/dist
-          ZIP="build/dist/simple_live_app-1.11.4+11104-windows.zip"
-          (cd build/windows/x64/runner/Release && zip -r - .) > "$ZIP"
-          echo "zip: $(ls -la "$ZIP" | awk '{print $5}') bytes"
+          echo "(powershell compress)"
+      - name: Zip Windows Release
+        shell: powershell
+        run: |
+          cd simple_live_app
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\dist\simple_live_app-1.11.4+11104-windows.zip -Force
+          Get-Item build\dist\simple_live_app-1.11.4+11104-windows.zip | Select-Object Length
       - name: Upload Windows to Artifacts
         uses: actions/upload-artifact@v4
         with:
