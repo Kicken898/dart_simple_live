@@ -108,6 +108,7 @@ jobs:
           done
           grep -l "SILENCE_EXPERIMENTAL_COROUTINE" "$PUB_CACHE"/hosted/pub.dev/*/windows/CMakeLists.txt 2>/dev/null || true
       - name: Build Windows
+        shell: bash
         run: |
           cd simple_live_app
           rm -rf build .dart_tool
