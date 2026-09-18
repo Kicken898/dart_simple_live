@@ -23,47 +23,19 @@ jobs:
         run: flutter config --enable-linux-desktop
       - name: Restore packages
         run: |
-          sed -i 's/auto_orientation_v2: \^2.3.6/auto_orientation_v2: 2.3.6/' simple_live_app/pubspec.yaml
           rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
-      - name: Install flutter_distributor
-        run: dart pub global activate flutter_distributor
-      - name: Build Linux (force clean + DIRECT_DISPATCH=0)
+      - name: Build Linux
         run: |
           cd simple_live_app
-          rm -rf build .dart_tool
-          flutter pub get
-          # Patch quickjs.c DIRECT_DISPATCH=0 right before build (git dep gets re-checked out by pub get)
-          for base in "$PUB_CACHE" "$HOME/.pub-cache" /home/runner/.pub-cache; do
-            DQ=$(find "$base" -maxdepth 2 -type d -name "dart_quickjs*" 2>/dev/null | head -1)
-            [ -n "$DQ" ] && break
-          done
-          echo "patching dir: ${DQ:-NOT_FOUND}"
-          [ -n "$DQ" ] || { echo "dart_quickjs source NOT found"; exit 1; }
-          F="$DQ/third_party/quickjs-ng/quickjs.c"
-          [ -f "$F" ] || { echo "no quickjs.c at $F"; exit 1; }
-          sed -i 's/#define DIRECT_DISPATCH 1/#define DIRECT_DISPATCH 0/' "$F"
-          grep -n "#define DIRECT_DISPATCH" "$F" || true
-          # Fix symbol interposition (js_free resolved to libmujs.so from media_kit/mpv/ffmpeg
-          # => SIGSEGV when QuickJS frees). Bind internal refs to own exports with -Bsymbolic.
-          HB="$DQ/dq_build.dart"
-          [ -f "$HB" ] || HB="$DQ/hook/build.dart"
-          echo "hook file: ${HB:-NOT_FOUND}"
-          if [ -n "$HB" ] && [ -f "$HB" ]; then
-            awk '/-fwrapv/{print; print "          '\''-Wl,-Bsymbolic'\'', // bind to own exports (fix libmujs interposition)"; next}1' "$HB" > "$HB.tmp" && mv "$HB.tmp" "$HB"
-            grep -n "Bsymbolic" "$HB" || true
-          else
-            echo "WARNING: dq_build.dart not found, cannot patch -Bsymbolic"
-          fi
-          # Build
           flutter build linux --release
-          echo "--- native asset outputs ---"
-          find build -name "libdart_quickjs.so" 2>/dev/null
-          echo "jump table count in native asset:"
-          objdump -d build/native_assets/linux/libdart_quickjs.so 2>/dev/null | grep -cE "jmpq? *\*%(rax|rbx|rcx|rdx|rsi|rdi|r8|r9|r10|r11|r12|r13|r14|r15)" || true
-          echo "jump table count in bundle:"
-          objdump -d build/linux/x64/release/bundle/lib/libdart_quickjs.so 2>/dev/null | grep -cE "jmpq? *\*%(rax|rbx|rcx|rdx|rsi|rdi|r8|r9|r10|r11|r12|r13|r14|r15)" || true
+          # dart_quickjs 必须带 -Bsymbolic：否则 libmpv 拉进来的 libmujs.so 会抢占
+          # js_free，QuickJS 首次 eval 就 SIGSEGV。上游 a3168280 起由 hook/build.dart 负责，
+          # 这里只验证产物，不再改源码。
+          SO=build/linux/x64/release/bundle/lib/libdart_quickjs.so
+          readelf -d "$SO" | grep -q SYMBOLIC || { echo "FAIL: $SO 缺少 -Bsymbolic"; exit 1; }
+          echo "OK: $SO 带 SYMBOLIC"
       - name: Package Linux deb+zip manually
         run: |
           cd simple_live_app
@@ -113,7 +85,6 @@ jobs:
       - name: Restore packages
         shell: bash
         run: |
-          sed -i 's/auto_orientation_v2: \^2.3.6/auto_orientation_v2: 2.3.6/' simple_live_app/pubspec.yaml
           rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
@@ -155,3 +126,37 @@ jobs:
           if-no-files-found: warn
           path: |
             simple_live_app/build/dist/*.zip
+
+  # 打包Android（不依赖任何签名 secrets，专门用来暴露真实构建错误）
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.x"
+          cache: true
+      - name: Flutter doctor
+        run: flutter doctor -v
+      - name: Restore packages
+        run: |
+          rm -f simple_live_app/pubspec.lock
+          cd simple_live_app
+          flutter pub get
+      - name: Build APK
+        working-directory: simple_live_app
+        run: flutter build apk --release --split-per-abi
+      - name: Upload Android to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          if-no-files-found: warn
+          path: |
+            simple_live_app/build/app/outputs/flutter-apk/*.apk
