@@ -46,7 +46,7 @@ app.*.map.json
 /android/app/release
 
 /ios/Podfile.lock
-pubspec.lock
+# pubspec.lock 刻意纳入版本控制：本 app 有大量 caret 约束，不提交 lock 时每次 CI 都会漂到最新版
 
 .fvm/
 

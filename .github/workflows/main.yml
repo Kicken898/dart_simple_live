@@ -2,6 +2,11 @@ name: desktop-build-action-dev
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_lock:
+        description: "删掉已提交的 pubspec.lock 重新解析依赖（新 lock 会作为 artifact 传出，取回后提交）"
+        type: boolean
+        default: false
 
 jobs:
   # 打包Linux
@@ -19,12 +24,15 @@ jobs:
         run: sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libasound2-dev libmpv-dev mpv
       - name: Enable Flutter Desktop
         run: flutter config --enable-linux-desktop
+      - name: Refresh lock
+        if: ${{ inputs.refresh_lock }}
+        run: rm -f simple_live_app/pubspec.lock
       - name: Restore packages
         run: |
-          rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
       - name: Upload pubspec.lock
+        if: ${{ inputs.refresh_lock }}
         uses: actions/upload-artifact@v4
         with:
           name: pubspec-lock
@@ -83,10 +91,13 @@ jobs:
           cache: true
       - name: Enable Flutter Desktop
         run: flutter config --enable-windows-desktop
+      - name: Refresh lock
+        if: ${{ inputs.refresh_lock }}
+        shell: bash
+        run: rm -f simple_live_app/pubspec.lock
       - name: Restore packages
         shell: bash
         run: |
-          rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
       - name: Patch experimental coroutine for new MSVC
@@ -144,9 +155,11 @@ jobs:
           cache: true
       - name: Flutter doctor
         run: flutter doctor -v
+      - name: Refresh lock
+        if: ${{ inputs.refresh_lock }}
+        run: rm -f simple_live_app/pubspec.lock
       - name: Restore packages
         run: |
-          rm -f simple_live_app/pubspec.lock
           cd simple_live_app
           flutter pub get
       - name: Build APK
