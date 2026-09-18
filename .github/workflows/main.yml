@@ -3,6 +3,18 @@ name: desktop-build-action-dev
 on:
   workflow_dispatch:
     inputs:
+      build_linux:
+        description: "构建 Linux"
+        type: boolean
+        default: true
+      build_windows:
+        description: "构建 Windows"
+        type: boolean
+        default: true
+      build_android:
+        description: "构建 Android"
+        type: boolean
+        default: true
       refresh_lock:
         description: "删掉已提交的 pubspec.lock 重新解析依赖（新 lock 会作为 artifact 传出，取回后提交）"
         type: boolean
@@ -11,6 +23,7 @@ on:
 jobs:
   # 打包Linux
   build-linux:
+    if: ${{ inputs.build_linux }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +95,7 @@ jobs:
 
   # 打包Windows
   build-windows:
+    if: ${{ inputs.build_windows }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,6 +155,7 @@ jobs:
 
   # 打包Android（不依赖任何签名 secrets，专门用来暴露真实构建错误）
   build-android:
+    if: ${{ inputs.build_android }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
